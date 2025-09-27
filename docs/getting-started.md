@@ -19,7 +19,7 @@ npm install
 复制环境变量模板：
 
 ```bash
-cp env.example .env
+cp .env.example .env
 ```
 
 编辑 `.env` 文件，配置必要的环境变量：
