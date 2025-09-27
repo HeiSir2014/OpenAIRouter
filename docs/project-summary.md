@@ -136,7 +136,7 @@ src/
 ### 开发环境
 ```bash
 npm install
-cp env.example .env
+cp .env.example .env
 npm run dev
 ```
 

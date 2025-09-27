@@ -169,7 +169,7 @@ openai-router/
 ├── 📄 jest.config.js          # Jest 测试配置
 ├── 📄 .prettierrc             # Prettier 格式化配置
 ├── 📄 .gitignore              # Git 忽略规则
-├── 📄 env.example             # 环境变量示例
+├── 📄 .env.example            # 环境变量示例
 └── 📄 README.md               # 项目说明
 ```
 
