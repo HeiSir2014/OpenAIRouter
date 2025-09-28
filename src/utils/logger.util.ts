@@ -9,6 +9,77 @@ import path from 'path';
 import { appConfig } from '../config/app.config.js';
 
 /**
+ * Safely serialize error objects
+ */
+const serializeError = (error: any): any => {
+  if (error instanceof Error) {
+    const result: any = {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+    };
+    if (error.cause) {
+      result.cause = error.cause;
+    }
+    return result;
+  }
+  return error;
+};
+
+/**
+ * Safely serialize meta objects
+ */
+const serializeMeta = (meta: any): any => {
+  if (meta === null || meta === undefined) {
+    return meta;
+  }
+  
+  if (meta instanceof Error) {
+    return serializeError(meta);
+  }
+  
+  // Handle primitive types
+  if (typeof meta !== 'object') {
+    return meta;
+  }
+  
+  // Handle arrays
+  if (Array.isArray(meta)) {
+    return meta.map(serializeMeta);
+  }
+  
+  // Handle special objects that shouldn't be serialized
+  if (meta.constructor && meta.constructor.name === 'Object' && Object.getPrototypeOf(meta) === null) {
+    // Handle null prototype objects
+    const result: any = {};
+    for (const key in meta) {
+      if (meta.hasOwnProperty(key)) {
+        result[key] = serializeMeta(meta[key]);
+      }
+    }
+    return result;
+  }
+  
+  // Handle regular objects
+  if (typeof meta === 'object' && meta.constructor === Object) {
+    const result: any = {};
+    for (const key in meta) {
+      if (meta.hasOwnProperty(key)) {
+        result[key] = serializeMeta(meta[key]);
+      }
+    }
+    return result;
+  }
+  
+  // Handle other objects by converting to string
+  try {
+    return String(meta);
+  } catch (error) {
+    return '[Object]';
+  }
+};
+
+/**
  * Custom log format
  */
 const logFormat = winston.format.combine(
@@ -19,13 +90,25 @@ const logFormat = winston.format.combine(
   winston.format.json(),
   winston.format.printf(({ timestamp, level, message, ...meta }) => {
     let logMessage = `${timestamp} [${level.toUpperCase()}]: ${message}`;
-    
+
     if (Object.keys(meta).length > 0) {
-      logMessage += ` ${JSON.stringify(meta)}`;
+      try {
+        const serializedMeta = serializeMeta(meta);
+        const metaString = JSON.stringify(serializedMeta, null, 2);
+        if (metaString && metaString !== '{}') {
+          logMessage += ` ${metaString}`;
+        }
+      } catch (error) {
+        // Fallback for any remaining issues
+        try {
+          logMessage += ` ${JSON.stringify(meta, null, 2)}`;
+        } catch (fallbackError) {
+          logMessage += ` [Serialization Error: ${String(fallbackError)}]`;
+        }
+      }
     }
-    
     return logMessage;
-  })
+  }),
 );
 
 /**
@@ -38,13 +121,26 @@ const consoleFormat = winston.format.combine(
   }),
   winston.format.printf(({ timestamp, level, message, ...meta }) => {
     let logMessage = `${timestamp} ${level}: ${message}`;
-    
+
     if (Object.keys(meta).length > 0) {
-      logMessage += ` ${JSON.stringify(meta, null, 2)}`;
+      try {
+        const serializedMeta = serializeMeta(meta);
+        const metaString = JSON.stringify(serializedMeta, null, 2);
+        if (metaString && metaString !== '{}') {
+          logMessage += ` ${metaString}`;
+        }
+      } catch (error) {
+        // Fallback for any remaining issues
+        try {
+          logMessage += ` ${JSON.stringify(meta, null, 2)}`;
+        } catch (fallbackError) {
+          logMessage += ` [Serialization Error: ${String(fallbackError)}]`;
+        }
+      }
     }
-    
+
     return logMessage;
-  })
+  }),
 );
 
 /**
@@ -52,19 +148,19 @@ const consoleFormat = winston.format.combine(
  */
 const createTransports = async (): Promise<winston.transport[]> => {
   const transports: winston.transport[] = [];
-  
+
   // Console transport (always enabled)
   transports.push(
     new winston.transports.Console({
       format: appConfig.env === 'development' ? consoleFormat : logFormat,
       level: appConfig.logLevel,
-    })
+    }),
   );
-  
+
   // File transport (if configured)
   if (appConfig.logFile) {
     const logDir = path.dirname(appConfig.logFile);
-    
+
     // Ensure log directory exists
     try {
       const fs = await import('fs');
@@ -74,7 +170,7 @@ const createTransports = async (): Promise<winston.transport[]> => {
     } catch (error) {
       console.warn('Failed to create log directory:', error);
     }
-    
+
     transports.push(
       new winston.transports.File({
         filename: appConfig.logFile,
@@ -83,9 +179,9 @@ const createTransports = async (): Promise<winston.transport[]> => {
         maxsize: 10 * 1024 * 1024, // 10MB
         maxFiles: 5,
         tailable: true,
-      })
+      }),
     );
-    
+
     // Error log file
     transports.push(
       new winston.transports.File({
@@ -95,10 +191,10 @@ const createTransports = async (): Promise<winston.transport[]> => {
         maxsize: 10 * 1024 * 1024,
         maxFiles: 5,
         tailable: true,
-      })
+      }),
     );
   }
-  
+
   return transports;
 };
 
@@ -118,24 +214,26 @@ export const logger = new Proxy({} as winston.Logger, {
           new winston.transports.Console({
             format: appConfig.env === 'development' ? consoleFormat : logFormat,
             level: appConfig.logLevel,
-          })
+          }),
         ],
         exitOnError: false,
       });
-      
+
       // Add file transport asynchronously if configured
       if (appConfig.logFile) {
-        createTransports().then(transports => {
-          // Replace transports with full set including file transport
-          _logger!.clear();
-          transports.forEach(transport => _logger!.add(transport));
-        }).catch(error => {
-          console.warn('Failed to initialize file logging:', error);
-        });
+        createTransports()
+          .then(transports => {
+            // Replace transports with full set including file transport
+            _logger!.clear();
+            transports.forEach(transport => _logger!.add(transport));
+          })
+          .catch(error => {
+            console.warn('Failed to initialize file logging:', error);
+          });
       }
     }
     return (_logger as any)[prop];
-  }
+  },
 });
 
 /**
@@ -145,10 +243,10 @@ export const createRequestLogger = () => {
   return (req: any, res: any, next: any) => {
     const start = Date.now();
     const requestId = Math.random().toString(36).substring(7);
-    
+
     // Add request ID to request object
     req.requestId = requestId;
-    
+
     logger.info('Request started', {
       requestId,
       method: req.method,
@@ -156,11 +254,11 @@ export const createRequestLogger = () => {
       userAgent: req.get('User-Agent'),
       ip: req.ip,
     });
-    
+
     // Log response
     res.on('finish', () => {
       const duration = Date.now() - start;
-      
+
       logger.info('Request completed', {
         requestId,
         method: req.method,
@@ -169,7 +267,7 @@ export const createRequestLogger = () => {
         duration: `${duration}ms`,
       });
     });
-    
+
     next();
   };
 };

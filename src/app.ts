@@ -6,7 +6,6 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import dotenv from 'dotenv';
 import { appConfig, getCorsConfig, validateConfig } from './config/app.config.js';
 import { initializeProviders } from './providers/factory.js';
 import { validateProviderConfigs } from './config/providers.config.js';
@@ -16,11 +15,14 @@ import { createChatRoutes } from './routes/chat.routes.js';
 import { createHealthRoutes } from './routes/health.routes.js';
 import { combinedLogger } from './middleware/logging.middleware.js';
 import { globalRateLimit } from './middleware/rate-limit.middleware.js';
-import { errorHandler, notFoundHandler, handleUncaughtException, handleUnhandledRejection } from './middleware/error.middleware.js';
+import {
+  errorHandler,
+  notFoundHandler,
+  handleUncaughtException,
+  handleUnhandledRejection,
+} from './middleware/error.middleware.js';
 import { logger, logSystemEvent } from './utils/logger.util.js';
 
-// Load environment variables
-dotenv.config();
 
 /**
  * Create Express application
@@ -40,10 +42,12 @@ export const createApp = async (): Promise<express.Application> => {
     initializeProviders();
 
     // Security middleware
-    app.use(helmet({
-      contentSecurityPolicy: false, // Disable CSP for API
-      crossOriginEmbedderPolicy: false,
-    }));
+    app.use(
+      helmet({
+        contentSecurityPolicy: false, // Disable CSP for API
+        crossOriginEmbedderPolicy: false,
+      }),
+    );
 
     // CORS configuration
     app.use(cors(getCorsConfig()));
@@ -114,7 +118,7 @@ export const createApp = async (): Promise<express.Application> => {
 export const startServer = async (): Promise<void> => {
   try {
     const app = await createApp();
-    
+
     const server = app.listen(appConfig.port, () => {
       logger.info('Server started successfully', {
         port: appConfig.port,
@@ -136,22 +140,22 @@ export const startServer = async (): Promise<void> => {
     // Graceful shutdown handling
     const gracefulShutdown = (signal: string) => {
       logger.info(`Received ${signal}, starting graceful shutdown`);
-      
+
       server.close(() => {
         logger.info('HTTP server closed');
-        
+
         // Close database connection
         DatabaseConnection.close();
-        
+
         logSystemEvent({
           event: 'server_shutdown',
           message: 'Server shutdown completed',
           metadata: { signal },
         });
-        
+
         process.exit(0);
       });
-      
+
       // Force close after 30 seconds
       setTimeout(() => {
         logger.error('Could not close connections in time, forcefully shutting down');
@@ -168,10 +172,12 @@ export const startServer = async (): Promise<void> => {
     process.on('unhandledRejection', handleUnhandledRejection);
 
     // Periodic maintenance tasks
-    setInterval(() => {
-      DatabaseConnection.maintenance();
-    }, 24 * 60 * 60 * 1000); // Run daily
-
+    setInterval(
+      () => {
+        DatabaseConnection.maintenance();
+      },
+      24 * 60 * 60 * 1000,
+    ); // Run daily
   } catch (error) {
     logger.error('Failed to start server', { error });
     process.exit(1);
@@ -183,7 +189,7 @@ export const startServer = async (): Promise<void> => {
 import { isMain } from './utils/esm-main.util.js';
 
 if (isMain(import.meta.url)) {
-  startServer().catch((error) => {
+  startServer().catch(error => {
     logger.error('Failed to start server', { error });
     process.exit(1);
   });

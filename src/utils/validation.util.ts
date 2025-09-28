@@ -11,7 +11,8 @@ import { LoginRequest, RegisterRequest, CreateApiKeyRequest } from '../types/aut
 /**
  * Email validation schema
  */
-export const emailSchema = z.string()
+export const emailSchema = z
+  .string()
   .email('Invalid email format')
   .min(5, 'Email must be at least 5 characters')
   .max(255, 'Email must not exceed 255 characters')
@@ -20,16 +21,20 @@ export const emailSchema = z.string()
 /**
  * Password validation schema
  */
-export const passwordSchema = z.string()
+export const passwordSchema = z
+  .string()
   .min(8, 'Password must be at least 8 characters')
   .max(128, 'Password must not exceed 128 characters')
-  .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, 
-    'Password must contain at least one lowercase letter, one uppercase letter, and one number');
+  .regex(
+    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/,
+    'Password must contain at least one lowercase letter, one uppercase letter, and one number',
+  );
 
 /**
  * Name validation schema
  */
-export const nameSchema = z.string()
+export const nameSchema = z
+  .string()
   .min(2, 'Name must be at least 2 characters')
   .max(100, 'Name must not exceed 100 characters')
   .regex(/^[a-zA-Z\s'-]+$/, 'Name can only contain letters, spaces, hyphens, and apostrophes');
@@ -37,10 +42,14 @@ export const nameSchema = z.string()
 /**
  * API key name validation schema
  */
-export const apiKeyNameSchema = z.string()
+export const apiKeyNameSchema = z
+  .string()
   .min(1, 'API key name is required')
   .max(100, 'API key name must not exceed 100 characters')
-  .regex(/^[a-zA-Z0-9\s\-_]+$/, 'API key name can only contain letters, numbers, spaces, hyphens, and underscores');
+  .regex(
+    /^[a-zA-Z0-9\s\-_]+$/,
+    'API key name can only contain letters, numbers, spaces, hyphens, and underscores',
+  );
 
 /**
  * User registration validation
@@ -74,72 +83,91 @@ export const createApiKeyRequestSchema = z.object({
 /**
  * OpenAI request validation schema
  */
-export const openaiRequestSchema = z.object({
-  messages: z.array(z.object({
-    role: z.enum(['system', 'user', 'assistant', 'tool']),
-    content: z.union([
-      z.string(),
-      z.array(z.object({
-        type: z.enum(['text', 'image_url']),
-        text: z.string().optional(),
-        image_url: z.object({
-          url: z.string().url(),
-          detail: z.enum(['auto', 'low', 'high']).optional(),
-        }).optional(),
-      })),
-      z.null(),
-    ]),
-    name: z.string().optional(),
-    tool_call_id: z.string().optional(),
-    tool_calls: z.array(z.object({
-      id: z.string(),
-      type: z.literal('function'),
-      function: z.object({
-        name: z.string(),
-        arguments: z.string(),
-      }),
-    })).optional(),
-  })).optional(),
-  prompt: z.string().optional(),
-  model: z.string().optional(),
-  max_tokens: z.number().int().min(1).max(100000).optional(),
-  temperature: z.number().min(0).max(2).optional(),
-  top_p: z.number().min(0).max(1).optional(),
-  n: z.number().int().min(1).max(10).optional(),
-  stream: z.boolean().optional(),
-  stop: z.union([z.string(), z.array(z.string())]).optional(),
-  presence_penalty: z.number().min(-2).max(2).optional(),
-  frequency_penalty: z.number().min(-2).max(2).optional(),
-  logit_bias: z.record(z.string(), z.number()).optional(),
-  user: z.string().optional(),
-  seed: z.number().int().optional(),
-  tools: z.array(z.object({
-    type: z.literal('function'),
-    function: z.object({
-      name: z.string(),
-      description: z.string().optional(),
-      parameters: z.record(z.string(), z.unknown()),
-    }),
-  })).optional(),
-  tool_choice: z.union([
-    z.enum(['none', 'auto']),
-    z.object({
-      type: z.literal('function'),
-      function: z.object({
-        name: z.string(),
-      }),
-    }),
-  ]).optional(),
-  response_format: z.object({
-    type: z.enum(['json_object', 'text']),
-  }).optional(),
-}).refine(
-  data => data.messages || data.prompt,
-  {
+export const openaiRequestSchema = z
+  .object({
+    messages: z
+      .array(
+        z.object({
+          role: z.enum(['system', 'user', 'assistant', 'tool']),
+          content: z.union([
+            z.string(),
+            z.array(
+              z.object({
+                type: z.enum(['text', 'image_url']),
+                text: z.string().optional(),
+                image_url: z
+                  .object({
+                    url: z.string().url(),
+                    detail: z.enum(['auto', 'low', 'high']).optional(),
+                  })
+                  .optional(),
+              }),
+            ),
+            z.null(),
+          ]),
+          name: z.string().optional(),
+          tool_call_id: z.string().optional(),
+          tool_calls: z
+            .array(
+              z.object({
+                id: z.string(),
+                type: z.literal('function'),
+                function: z.object({
+                  name: z.string(),
+                  arguments: z.string(),
+                }),
+              }),
+            )
+            .optional(),
+        }),
+      )
+      .optional(),
+    prompt: z.string().optional(),
+    model: z.string().optional(),
+    max_tokens: z.number().int().min(1).max(100000).optional(),
+    temperature: z.number().min(0).max(2).optional(),
+    top_p: z.number().min(0).max(1).optional(),
+    n: z.number().int().min(1).max(10).optional(),
+    stream: z.boolean().optional(),
+    stop: z.union([z.string(), z.array(z.string())]).optional(),
+    presence_penalty: z.number().min(-2).max(2).optional(),
+    frequency_penalty: z.number().min(-2).max(2).optional(),
+    logit_bias: z.record(z.string(), z.number()).optional(),
+    user: z.string().optional(),
+    seed: z.number().int().optional(),
+    tools: z
+      .array(
+        z.object({
+          type: z.literal('function'),
+          function: z.object({
+            name: z.string(),
+            description: z.string().optional(),
+            parameters: z.record(z.string(), z.unknown()),
+          }),
+        }),
+      )
+      .optional(),
+    tool_choice: z
+      .union([
+        z.enum(['none', 'auto']),
+        z.object({
+          type: z.literal('function'),
+          function: z.object({
+            name: z.string(),
+          }),
+        }),
+      ])
+      .optional(),
+    response_format: z
+      .object({
+        type: z.enum(['json_object', 'text']),
+      })
+      .optional(),
+  })
+  .refine(data => data.messages || data.prompt, {
     message: 'Either messages or prompt must be provided',
     path: ['messages'],
-  }
-);
+  });
 
 /**
  * Validate user registration data
@@ -176,7 +204,7 @@ export const sanitizeString = (input: string): string => {
   if (typeof input !== 'string') {
     return '';
   }
-  
+
   return input
     .trim()
     .replace(/[<>]/g, '') // Remove potential HTML tags
@@ -210,7 +238,7 @@ export const isValidModelName = (model: string): boolean => {
   if (!model || typeof model !== 'string') {
     return false;
   }
-  
+
   // Allow alphanumeric, hyphens, underscores, dots, and forward slashes
   const modelRegex = /^[a-zA-Z0-9\-_./]+$/;
   return modelRegex.test(model) && model.length <= 100;
@@ -223,7 +251,7 @@ export const isValidProviderName = (provider: string): boolean => {
   if (!provider || typeof provider !== 'string') {
     return false;
   }
-  
+
   // Allow only lowercase letters, numbers, and hyphens
   const providerRegex = /^[a-z0-9\-]+$/;
   return providerRegex.test(provider) && provider.length <= 50;
@@ -237,7 +265,7 @@ export const validatePaginationParams = (query: any) => {
   const limit = Math.min(100, Math.max(1, parseInt(query.limit) || 20));
   const sortBy = query.sortBy || 'createdAt';
   const sortOrder = ['asc', 'desc'].includes(query.sortOrder) ? query.sortOrder : 'desc';
-  
+
   return { page, limit, sortBy, sortOrder };
 };
 
@@ -248,7 +276,7 @@ export const validateSearchQuery = (query: string): string => {
   if (!query || typeof query !== 'string') {
     return '';
   }
-  
+
   return query
     .trim()
     .replace(/[^\w\s\-_.]/g, '') // Allow only word characters, spaces, hyphens, underscores, dots
@@ -264,7 +292,7 @@ export const createValidationError = (error: z.ZodError) => {
     message: err.message,
     code: err.code,
   }));
-  
+
   return {
     error: {
       message: 'Validation failed',

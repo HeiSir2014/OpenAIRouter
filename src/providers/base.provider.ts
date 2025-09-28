@@ -24,7 +24,10 @@ export abstract class BaseProvider implements IProvider {
    * Main chat completion method
    * Must be implemented by each provider
    */
-  abstract chatCompletion(request: OpenAIRequest): Promise<OpenAIResponse>;
+  abstract chatCompletion(
+    request: OpenAIRequest,
+    headers?: Record<string, string | string[] | undefined>,
+  ): Promise<OpenAIResponse>;
 
   /**
    * Transform OpenAI request to provider-specific format
@@ -109,7 +112,7 @@ export abstract class BaseProvider implements IProvider {
 
     const errorMessage = typeof error === 'string' ? error : 'Unknown provider error';
     const providerError = new Error(`Provider ${this.name}: ${errorMessage}`);
-    
+
     logger.error(`Provider ${this.name} error`, {
       provider: this.name,
       error: errorMessage,
@@ -123,7 +126,7 @@ export abstract class BaseProvider implements IProvider {
    */
   async getHealth(): Promise<{ healthy: boolean; latency: number; error?: string }> {
     const startTime = Date.now();
-    
+
     try {
       // Simple health check with minimal request
       const testRequest: OpenAIRequest = {
@@ -132,7 +135,7 @@ export abstract class BaseProvider implements IProvider {
       };
 
       await this.chatCompletion(testRequest);
-      
+
       return {
         healthy: true,
         latency: Date.now() - startTime,
@@ -225,7 +228,7 @@ export abstract class BaseProvider implements IProvider {
     operation: string,
     duration: number,
     success: boolean,
-    error?: string
+    error?: string,
   ): void {
     logger.info('Provider metrics', {
       provider: this.name,
@@ -242,7 +245,7 @@ export abstract class BaseProvider implements IProvider {
   protected createErrorResponse(
     error: string,
     type: string = 'provider_error',
-    code: string = 'provider_request_failed'
+    code: string = 'provider_request_failed',
   ): never {
     throw new Error(`${this.name}: ${error}`);
   }

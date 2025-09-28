@@ -18,7 +18,7 @@ export interface ApiError {
   stack?: string;
 }
 
-export type ErrorType = 
+export type ErrorType =
   | 'validation_error'
   | 'authentication_error'
   | 'authorization_error'
@@ -166,4 +166,5 @@ export interface AppConfig {
     defaultTpm: number;
     windowMs: number;
   };
+  disableAuth: boolean;
 }

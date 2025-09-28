@@ -6,10 +6,9 @@
 import { Router } from 'express';
 
 import { ChatController } from '../controllers/chat.controller.js';
-import { authMiddleware, optionalAuthMiddleware } from '../middleware/auth.middleware.js';
-import { validate, validateContentType } from '../middleware/validation.middleware.js';
+import { conditionalAuthMiddleware, optionalAuthMiddleware } from '../middleware/auth.middleware.js';
+import { validateContentType } from '../middleware/validation.middleware.js';
 import { apiKeyRateLimit, tokenRateLimit } from '../middleware/rate-limit.middleware.js';
-import { openaiRequestSchema } from '../utils/validation.util.js';
 
 /**
  * Create chat routes
@@ -18,8 +17,8 @@ export const createChatRoutes = (): Router => {
   const router = Router();
   const chatController = new ChatController();
 
-  // All chat routes require authentication
-  router.use(authMiddleware);
+  // All chat routes require authentication (can be disabled via config)
+  router.use(conditionalAuthMiddleware);
 
   // Apply rate limiting
   router.use(apiKeyRateLimit());
@@ -33,8 +32,7 @@ export const createChatRoutes = (): Router => {
   router.post(
     '/chat/completions',
     validateContentType(['application/json']),
-    validate(openaiRequestSchema),
-    chatController.createChatCompletion
+    chatController.createChatCompletion,
   );
 
   /**
@@ -45,8 +43,7 @@ export const createChatRoutes = (): Router => {
   router.post(
     '/chat/completions/estimate',
     validateContentType(['application/json']),
-    validate(openaiRequestSchema),
-    chatController.estimateCost
+    chatController.estimateCost,
   );
 
   /**
@@ -57,7 +54,7 @@ export const createChatRoutes = (): Router => {
   router.post(
     '/chat/completions/validate',
     validateContentType(['application/json']),
-    chatController.validateRequest
+    chatController.validateRequest,
   );
 
   /**

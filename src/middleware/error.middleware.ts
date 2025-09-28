@@ -24,17 +24,17 @@ export class AppError extends Error {
     statusCode: number = 500,
     type: ErrorType = 'internal_error',
     code: string = 'internal_error',
-    details?: Record<string, unknown>
+    details?: Record<string, unknown>,
   ) {
     super(message);
-    
+
     this.name = 'AppError';
     this.statusCode = statusCode;
     this.type = type;
     this.code = code;
     this.details = details;
     this.isOperational = true;
-    
+
     Error.captureStackTrace(this, this.constructor);
   }
 }
@@ -47,7 +47,7 @@ export const createApiError = (
   statusCode: number = 500,
   type: ErrorType = 'internal_error',
   code: string = 'internal_error',
-  details?: Record<string, unknown>
+  details?: Record<string, unknown>,
 ): AppError => {
   return new AppError(message, statusCode, type, code, details);
 };
@@ -70,12 +70,7 @@ export const createAuthorizationError = (message: string = 'Access denied'): App
  * Not found error
  */
 export const createNotFoundError = (resource: string = 'Resource'): AppError => {
-  return new AppError(
-    `${resource} not found`,
-    404,
-    'not_found_error',
-    'resource_not_found'
-  );
+  return new AppError(`${resource} not found`, 404, 'not_found_error', 'resource_not_found');
 };
 
 /**
@@ -83,7 +78,7 @@ export const createNotFoundError = (resource: string = 'Resource'): AppError => 
  */
 export const createValidationError = (
   message: string = 'Validation failed',
-  details?: Record<string, unknown>
+  details?: Record<string, unknown>,
 ): AppError => {
   return new AppError(message, 400, 'validation_error', 'validation_failed', details);
 };
@@ -93,7 +88,7 @@ export const createValidationError = (
  */
 export const createRateLimitError = (
   message: string = 'Rate limit exceeded',
-  details?: Record<string, unknown>
+  details?: Record<string, unknown>,
 ): AppError => {
   return new AppError(message, 429, 'rate_limit_error', 'rate_limit_exceeded', details);
 };
@@ -105,14 +100,14 @@ export const createProviderError = (
   provider: string,
   message: string,
   statusCode: number = 502,
-  details?: Record<string, unknown>
+  details?: Record<string, unknown>,
 ): AppError => {
   return new AppError(
     `Provider error (${provider}): ${message}`,
     statusCode,
     'provider_error',
     'provider_request_failed',
-    { provider, ...details }
+    { provider, ...details },
   );
 };
 
@@ -123,14 +118,14 @@ export const createExternalApiError = (
   service: string,
   message: string,
   statusCode: number = 502,
-  details?: Record<string, unknown>
+  details?: Record<string, unknown>,
 ): AppError => {
   return new AppError(
     `External API error (${service}): ${message}`,
     statusCode,
     'external_api_error',
     'external_api_failed',
-    { service, ...details }
+    { service, ...details },
   );
 };
 
@@ -141,7 +136,7 @@ export const errorHandler = (
   error: Error,
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): void => {
   // If response already sent, delegate to default Express error handler
   if (res.headersSent) {
@@ -231,7 +226,7 @@ export const errorHandler = (
  */
 export const notFoundHandler = (req: Request, res: Response): void => {
   const error = createNotFoundError('Endpoint');
-  
+
   logger.warn('Endpoint not found', {
     path: req.path,
     method: req.method,
@@ -256,7 +251,7 @@ export const notFoundHandler = (req: Request, res: Response): void => {
  * Wraps async route handlers to catch errors
  */
 export const asyncHandler = (
-  fn: (req: Request, res: Response, next: NextFunction) => Promise<any>
+  fn: (req: Request, res: Response, next: NextFunction) => Promise<any>,
 ) => {
   return (req: Request, res: Response, next: NextFunction): void => {
     Promise.resolve(fn(req, res, next)).catch(next);
@@ -273,19 +268,19 @@ export const handleDatabaseError = (error: any): AppError => {
       field: error.message,
     });
   }
-  
+
   if (error.code === 'SQLITE_CONSTRAINT_FOREIGNKEY') {
     return createValidationError('Invalid reference', {
       constraint: 'foreign_key',
     });
   }
-  
+
   if (error.code === 'SQLITE_CONSTRAINT_CHECK') {
     return createValidationError('Invalid value', {
       constraint: 'check',
     });
   }
-  
+
   return createApiError('Database error', 500, 'internal_error', 'database_error', {
     originalError: error.message,
   });
@@ -299,7 +294,7 @@ export const handleAxiosError = (error: any, provider: string): AppError => {
     // The request was made and the server responded with a status code
     const statusCode = error.response.status;
     const message = error.response.data?.error?.message || error.message;
-    
+
     return createProviderError(provider, message, statusCode, {
       statusCode,
       responseData: error.response.data,
@@ -323,7 +318,7 @@ export const handleUncaughtException = (error: Error): void => {
     error: error.message,
     stack: error.stack,
   });
-  
+
   // Give time for logging to complete
   setTimeout(() => {
     process.exit(1);
@@ -339,7 +334,7 @@ export const handleUnhandledRejection = (reason: any, promise: Promise<any>): vo
     stack: reason?.stack,
     promise: promise.toString(),
   });
-  
+
   // Give time for logging to complete
   setTimeout(() => {
     process.exit(1);

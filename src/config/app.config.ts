@@ -3,6 +3,8 @@
  * Centralized configuration management with environment variable validation
  */
 
+// Import environment config first to ensure env variables are loaded
+import './env.config.js';
 import { AppConfig, Environment } from '../types/common.types.js';
 
 /**
@@ -18,25 +20,26 @@ function loadConfig(): AppConfig {
   const logLevel = process.env['LOG_LEVEL'] || 'info';
   const logFile = process.env['LOG_FILE'];
   const corsOrigins = process.env['CORS_ORIGINS']?.split(',') || ['*'];
-  
+  const disableAuth = process.env['DISABLE_AUTH'] === 'true';
+
   // Rate limiting configuration
   const defaultRpm = parseInt(process.env['DEFAULT_RATE_LIMIT_RPM'] || '60', 10);
   const defaultTpm = parseInt(process.env['DEFAULT_RATE_LIMIT_TPM'] || '10000', 10);
   const windowMs = parseInt(process.env['RATE_LIMIT_WINDOW_MS'] || '60000', 10);
-  
+
   // Validate required environment variables
   if (!jwtSecret) {
     throw new Error('JWT_SECRET environment variable is required');
   }
-  
+
   if (jwtSecret.length < 32) {
     throw new Error('JWT_SECRET must be at least 32 characters long');
   }
-  
+
   if (port < 1 || port > 65535) {
     throw new Error('PORT must be between 1 and 65535');
   }
-  
+
   return {
     env,
     port,
@@ -51,6 +54,7 @@ function loadConfig(): AppConfig {
       defaultTpm,
       windowMs,
     },
+    disableAuth,
   };
 }
 
@@ -65,7 +69,7 @@ export const appConfig: AppConfig = new Proxy({} as AppConfig, {
       _appConfig = loadConfig();
     }
     return _appConfig[prop as keyof AppConfig];
-  }
+  },
 });
 
 /**
@@ -100,7 +104,7 @@ export const getJwtConfig = () => {
   if (!appConfig.jwtSecret) {
     throw new Error('JWT_SECRET environment variable is required');
   }
-  
+
   return {
     secret: appConfig.jwtSecret,
     expiresIn: appConfig.jwtExpiresIn,
@@ -140,18 +144,18 @@ export const getRateLimitConfig = () => ({
  */
 export const validateConfig = (): void => {
   const requiredEnvVars = ['JWT_SECRET'];
-  
+
   for (const envVar of requiredEnvVars) {
     if (!process.env[envVar]) {
       throw new Error(`Required environment variable ${envVar} is not set`);
     }
   }
-  
+
   // Additional validations
   if (appConfig.port < 1 || appConfig.port > 65535) {
     throw new Error('Invalid port number');
   }
-  
+
   if (!['development', 'production', 'test'].includes(appConfig.env)) {
     throw new Error('Invalid NODE_ENV value');
   }

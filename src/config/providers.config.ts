@@ -3,6 +3,8 @@
  * Configuration for AI service providers (OpenAI, Anthropic, etc.)
  */
 
+// Import environment config first to ensure env variables are loaded
+import './env.config.js';
 import { ProviderConfig } from '../types/provider.types.js';
 
 /**
@@ -66,10 +68,7 @@ const anthropicConfig: ProviderConfig = {
 /**
  * All provider configurations
  */
-export const PROVIDER_CONFIGS: ProviderConfig[] = [
-  openaiConfig,
-  anthropicConfig,
-];
+export const PROVIDER_CONFIGS: ProviderConfig[] = [openaiConfig, anthropicConfig];
 
 /**
  * Get active providers only
@@ -89,9 +88,7 @@ export const getProviderByName = (name: string): ProviderConfig | undefined => {
  * Get providers that support a specific model
  */
 export const getProvidersForModel = (model: string): ProviderConfig[] => {
-  return PROVIDER_CONFIGS.filter(provider => 
-    provider.isActive && provider.models.includes(model)
-  );
+  return PROVIDER_CONFIGS.filter(provider => provider.isActive && provider.models.includes(model));
 };
 
 /**
@@ -102,19 +99,19 @@ export const MODEL_PROVIDER_MAP: Record<string, string> = {
   // DeepSeek models (via OpenRouter)
   'deepseek/deepseek-chat-v3.1:free': 'openai',
   'deepseek/deepseek-chat': 'openai',
-  
+
   // OpenRouter models
   'openai/gpt-4o': 'openai',
   'openai/gpt-4o-mini': 'openai',
   'anthropic/claude-3.5-sonnet': 'openai',
-  
+
   // Original OpenAI models
   'gpt-4': 'openai',
   'gpt-4-turbo': 'openai',
   'gpt-4-turbo-preview': 'openai',
   'gpt-3.5-turbo': 'openai',
   'gpt-3.5-turbo-16k': 'openai',
-  
+
   // Anthropic models
   'claude-3-opus': 'anthropic',
   'claude-3-opus-20240229': 'anthropic',
@@ -125,10 +122,10 @@ export const MODEL_PROVIDER_MAP: Record<string, string> = {
   'claude-2.1': 'anthropic',
   'claude-2.0': 'anthropic',
   'claude-instant-1.2': 'anthropic',
-  
+
   // Generic mappings
-  'claude': 'anthropic',
-  'gpt': 'openai',
+  claude: 'anthropic',
+  gpt: 'openai',
 };
 
 /**
@@ -139,16 +136,16 @@ export const getProviderForModel = (model: string): string => {
   if (MODEL_PROVIDER_MAP[model]) {
     return MODEL_PROVIDER_MAP[model];
   }
-  
+
   // Fuzzy matching
   if (model.includes('gpt')) {
     return 'openai';
   }
-  
+
   if (model.includes('claude')) {
     return 'anthropic';
   }
-  
+
   // Default fallback
   return 'openai';
 };
@@ -166,7 +163,7 @@ export const getDefaultModel = (): string => {
   if (envDefault) {
     return envDefault;
   }
-  
+
   // Fallback to first available model from active providers
   const availableModels = getAllAvailableModels();
   return availableModels.length > 0 ? availableModels[0] : 'gpt-3.5-turbo';
@@ -185,20 +182,22 @@ export const PROVIDER_HEALTH_CHECKS: Record<string, string> = {
  */
 export const validateProviderConfigs = (): void => {
   const activeProviders = getActiveProviders();
-  
+
   if (activeProviders.length === 0) {
-    throw new Error('No active providers configured. Please set API keys for at least one provider.');
+    throw new Error(
+      'No active providers configured. Please set API keys for at least one provider.',
+    );
   }
-  
+
   for (const provider of activeProviders) {
     if (!provider.apiKey) {
       throw new Error(`API key not configured for provider: ${provider.name}`);
     }
-    
+
     if (!provider.baseUrl) {
       throw new Error(`Base URL not configured for provider: ${provider.name}`);
     }
-    
+
     if (provider.models.length === 0) {
       throw new Error(`No models configured for provider: ${provider.name}`);
     }
@@ -210,12 +209,12 @@ export const validateProviderConfigs = (): void => {
  */
 export const getAllAvailableModels = (): string[] => {
   const models = new Set<string>();
-  
+
   for (const provider of getActiveProviders()) {
     for (const model of provider.models) {
       models.add(model);
     }
   }
-  
+
   return Array.from(models).sort();
 };

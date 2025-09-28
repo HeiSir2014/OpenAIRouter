@@ -26,17 +26,17 @@ export const createAuthRoutes = (): Router => {
   const authRateLimit = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
     maxRequests: 10, // Limit each IP to 10 requests per windowMs
-    keyGenerator: (req) => req.ip || 'unknown',
+    keyGenerator: req => req.ip || 'unknown',
   });
 
   const strictAuthRateLimit = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
     maxRequests: 5, // Stricter limit for sensitive operations
-    keyGenerator: (req) => req.ip || 'unknown',
+    keyGenerator: req => req.ip || 'unknown',
   });
 
   // Public routes (no authentication required)
-  
+
   /**
    * @route POST /auth/register
    * @desc Register a new user
@@ -47,7 +47,7 @@ export const createAuthRoutes = (): Router => {
     authRateLimit,
     validateContentType(['application/json']),
     validate(registerRequestSchema),
-    authController.register
+    authController.register,
   );
 
   /**
@@ -60,7 +60,7 @@ export const createAuthRoutes = (): Router => {
     authRateLimit,
     validateContentType(['application/json']),
     validate(loginRequestSchema),
-    authController.login
+    authController.login,
   );
 
   /**
@@ -88,7 +88,7 @@ export const createAuthRoutes = (): Router => {
     '/profile',
     authMiddleware,
     validateContentType(['application/json']),
-    authController.updateProfile
+    authController.updateProfile,
   );
 
   /**
@@ -101,7 +101,7 @@ export const createAuthRoutes = (): Router => {
     authMiddleware,
     strictAuthRateLimit,
     validateContentType(['application/json']),
-    authController.changePassword
+    authController.changePassword,
   );
 
   /**
@@ -130,7 +130,7 @@ export const createAuthRoutes = (): Router => {
     authMiddleware,
     validateContentType(['application/json']),
     validate(createApiKeyRequestSchema),
-    authController.createApiKey
+    authController.createApiKey,
   );
 
   /**
@@ -156,7 +156,7 @@ export const createAuthRoutes = (): Router => {
     '/api-keys/:keyId',
     authMiddleware,
     validateContentType(['application/json']),
-    authController.updateApiKey
+    authController.updateApiKey,
   );
 
   /**

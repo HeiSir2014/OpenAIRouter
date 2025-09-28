@@ -6,9 +6,10 @@
 import { Request, Response } from 'express';
 
 import { ChatService } from '../services/chat.service.js';
-import { validateOpenAIRequest } from '../utils/validation.util.js';
 import { logger } from '../utils/logger.util.js';
 import { asyncHandler } from '../middleware/error.middleware.js';
+import { appConfig } from '../config/app.config.js';
+import { User } from '../types/auth.types.js';
 
 /**
  * Chat controller class
@@ -17,23 +18,56 @@ export class ChatController {
   private chatService = new ChatService();
 
   /**
+   * Get user and API key information, handling disabled authentication
+   */
+  private getUserAndApiKey(req: Request): { user: User; apiKeyId: string } {
+    if (appConfig.disableAuth) {
+      // Return default values when authentication is disabled
+      const defaultUser: User = {
+        id: 'dev-user',
+        email: 'dev@localhost',
+        name: 'Development User',
+        passwordHash: '',
+        plan: 'enterprise',
+        credits: 999999,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      
+      return {
+        user: defaultUser,
+        apiKeyId: 'dev-api-key',
+      };
+    }
+
+    // Use actual user and API key when authentication is enabled
+    const user = req.user!;
+    const apiKey = req.apiKey!;
+    
+    return {
+      user,
+      apiKeyId: apiKey.id,
+    };
+  }
+
+  /**
    * Create chat completion
    * POST /v1/chat/completions
    */
   createChatCompletion = asyncHandler(async (req: Request, res: Response): Promise<void> => {
-    const user = req.user!;
-    const apiKey = req.apiKey!;
-    
-    // Validate request body
-    const request = validateOpenAIRequest(req.body);
+    const { user, apiKeyId } = this.getUserAndApiKey(req);
+
+    // Use request body directly without validation
+    const request = req.body;
 
     logger.info('Chat completion request received', {
       userId: user.id,
-      apiKeyId: apiKey.id,
+      apiKeyId: apiKeyId,
       model: request.model,
       messagesCount: request.messages?.length,
       hasTools: Boolean(request.tools),
       stream: request.stream,
+      authDisabled: appConfig.disableAuth,
     });
 
     // Handle streaming vs non-streaming
@@ -50,7 +84,7 @@ export class ChatController {
     }
 
     // Create completion
-    const response = await this.chatService.createCompletion(request, user, apiKey.id);
+    const response = await this.chatService.createCompletion(request, user, apiKeyId, req.headers);
 
     // Set response headers
     res.set({
@@ -102,7 +136,7 @@ export class ChatController {
    * POST /v1/chat/completions/estimate
    */
   estimateCost = asyncHandler(async (req: Request, res: Response): Promise<void> => {
-    const request = validateOpenAIRequest(req.body);
+    const request = req.body;
 
     const estimate = await this.chatService.estimateRequestCost(request);
 
@@ -158,8 +192,8 @@ export class ChatController {
    */
   validateRequest = asyncHandler(async (req: Request, res: Response): Promise<void> => {
     try {
-      const request = validateOpenAIRequest(req.body);
-      
+      const request = req.body;
+
       res.json({
         success: true,
         data: {
@@ -184,9 +218,10 @@ export class ChatController {
    * GET /v1/usage
    */
   getUsage = asyncHandler(async (req: Request, res: Response): Promise<void> => {
-    const userId = req.user!.id;
+    const { user, apiKeyId: defaultApiKeyId } = this.getUserAndApiKey(req);
+    const userId = user.id;
     const days = parseInt(req.query.days as string) || 30;
-    const apiKeyId = req.query.apiKeyId as string;
+    const apiKeyId = (req.query.apiKeyId as string) || defaultApiKeyId;
 
     if (days < 1 || days > 365) {
       res.status(400).json({
@@ -227,25 +262,25 @@ export class ChatController {
    * POST /v1/test
    */
   test = asyncHandler(async (req: Request, res: Response): Promise<void> => {
-    const user = req.user;
-    const apiKey = req.apiKey;
+    const { user, apiKeyId } = this.getUserAndApiKey(req);
 
     res.json({
       success: true,
       data: {
         message: 'Test endpoint working',
-        user: user ? {
+        user: {
           id: user.id,
           email: user.email,
           plan: user.plan,
           credits: user.credits,
-        } : null,
-        apiKey: apiKey ? {
-          id: apiKey.id,
-          name: apiKey.name,
-          rateLimitRpm: apiKey.rateLimitRpm,
-          rateLimitTpm: apiKey.rateLimitTpm,
-        } : null,
+        },
+        apiKey: {
+          id: apiKeyId,
+          name: appConfig.disableAuth ? 'Development API Key' : 'API Key',
+          rateLimitRpm: appConfig.disableAuth ? 999999 : 0,
+          rateLimitTpm: appConfig.disableAuth ? 999999 : 0,
+        },
+        authDisabled: appConfig.disableAuth,
         timestamp: new Date().toISOString(),
         requestId: req.requestId,
       },
