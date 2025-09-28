@@ -22,9 +22,12 @@ export class OpenAIProvider extends BaseProvider {
   /**
    * Chat completion implementation for OpenAI
    */
-  async chatCompletion(request: OpenAIRequest): Promise<OpenAIResponse> {
+  async chatCompletion(
+    request: OpenAIRequest,
+    userHeaders?: Record<string, string | string[] | undefined>,
+  ): Promise<OpenAIResponse> {
     const startTime = Date.now();
-    
+
     try {
       // Validate request
       this.validateRequest(request);
@@ -32,8 +35,16 @@ export class OpenAIProvider extends BaseProvider {
       // Transform request (mostly passthrough for OpenAI)
       const transformedRequest = this.transformRequest(request);
 
-      // Get headers
-      const headers = this.getHeaders();
+      // Get headers and merge with user headers
+      const baseHeaders = this.getHeaders();
+      const headers = this.mergeHeaders(baseHeaders, userHeaders);
+
+      // Debug: Log headers to ensure our API key is used
+      logger.debug('OpenAI request headers', {
+        baseHeaders: { ...baseHeaders, Authorization: 'Bearer [REDACTED]' },
+        userHeaders: userHeaders ? Object.keys(userHeaders) : 'none',
+        finalHeaders: { ...headers, Authorization: 'Bearer [REDACTED]' },
+      });
 
       // Log request (sanitized)
       logger.info('OpenAI API request', {
@@ -50,20 +61,18 @@ export class OpenAIProvider extends BaseProvider {
         {
           headers,
           timeout: this.config.timeout,
-          validateStatus: (status) => status < 500, // Don't throw on 4xx errors
-        }
+          validateStatus: status => status < 500, // Don't throw on 4xx errors
+        },
       );
 
       // Handle non-2xx responses
       if (response.status >= 400) {
         const errorData = response.data;
         const errorMessage = errorData?.error?.message || `HTTP ${response.status}`;
-        
+
         logger.warn('OpenAI API error response', {
           provider: this.name,
-          status: response.status,
-          error: errorMessage,
-          model: request.model,
+          ...response,
         });
 
         throw new Error(errorMessage);
@@ -76,17 +85,21 @@ export class OpenAIProvider extends BaseProvider {
       const duration = Date.now() - startTime;
       this.logMetrics('chat_completion', duration, true);
 
+      // Log detailed response information
       logger.info('OpenAI API response', {
         provider: this.name,
-        model: transformedResponse.model,
-        duration,
-        usage: transformedResponse.usage,
+        ...transformedResponse,
       });
 
       return transformedResponse;
     } catch (error) {
       const duration = Date.now() - startTime;
-      this.logMetrics('chat_completion', duration, false, error instanceof Error ? error.message : 'Unknown error');
+      this.logMetrics(
+        'chat_completion',
+        duration,
+        false,
+        error instanceof Error ? error.message : 'Unknown error',
+      );
 
       // Handle Axios errors
       if (axios.isAxiosError(error)) {
@@ -104,7 +117,7 @@ export class OpenAIProvider extends BaseProvider {
   transformRequest(request: OpenAIRequest): OpenAIRequest {
     // For OpenAI, we mostly pass through the request as-is
     // but we can add some normalization or filtering here
-    
+
     const transformedRequest: OpenAIRequest = {
       ...request,
     };
@@ -134,7 +147,7 @@ export class OpenAIProvider extends BaseProvider {
   transformResponse(response: any): OpenAIResponse {
     // OpenAI responses are already in the correct format
     // Just ensure we have all required fields
-    
+
     const transformedResponse: OpenAIResponse = {
       id: response.id || `chatcmpl-${Date.now()}`,
       object: response.object || 'chat.completion',
@@ -162,7 +175,7 @@ export class OpenAIProvider extends BaseProvider {
    */
   getHeaders(): Record<string, string> {
     const headers: Record<string, string> = {
-      'Authorization': `Bearer ${this.config.apiKey}`,
+      Authorization: `Bearer ${this.config.apiKey}`,
       'Content-Type': 'application/json',
       'User-Agent': 'OpenAI-Router/1.0.0',
     };
@@ -284,11 +297,13 @@ export class OpenAIProvider extends BaseProvider {
       },
     };
 
-    return modelInfo[model] || {
-      contextLength: 4096,
-      supportsFunctions: false,
-      supportsVision: false,
-    };
+    return (
+      modelInfo[model] || {
+        contextLength: 4096,
+        supportsFunctions: false,
+        supportsVision: false,
+      }
+    );
   }
 
   /**
@@ -304,7 +319,7 @@ export class OpenAIProvider extends BaseProvider {
     if (request.messages) {
       for (const message of request.messages) {
         tokenCount += 4; // Base tokens per message
-        
+
         if (typeof message.content === 'string') {
           // More accurate estimation for OpenAI: ~0.75 tokens per word
           const words = message.content.split(/\s+/).length;
@@ -360,5 +375,40 @@ export class OpenAIProvider extends BaseProvider {
     tokenCount += maxTokens;
 
     return tokenCount;
+  }
+
+  /**
+   * Merge base headers with user headers
+   * User headers take precedence over base headers
+   */
+  private mergeHeaders(
+    baseHeaders: Record<string, string>,
+    userHeaders?: Record<string, string | string[] | undefined>,
+  ): Record<string, string> {
+    const merged = { ...baseHeaders };
+
+    if (userHeaders) {
+      for (const [key, value] of Object.entries(userHeaders)) {
+        // Skip our own auth headers to prevent conflicts
+        const lowerKey = key.toLowerCase();
+        if (lowerKey === 'authorization' || lowerKey === 'x-api-key') {
+          logger.debug('Skipping user auth header', { key, value: '[REDACTED]' });
+          continue;
+        }
+        
+        // Convert array values to string
+        if (Array.isArray(value)) {
+          merged[key] = value.join(', ');
+        } else if (value !== undefined) {
+          merged[key] = value;
+        }
+      }
+    }
+
+    // Remove any Host header from user headers to let axios set it automatically
+    delete merged['Host'];
+    delete merged['host'];
+
+    return merged;
   }
 }

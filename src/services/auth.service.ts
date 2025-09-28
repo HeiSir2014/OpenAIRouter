@@ -23,7 +23,11 @@ import {
   hashApiKey,
 } from '../utils/crypto.util.js';
 import { logger, logAuthEvent } from '../utils/logger.util.js';
-import { createAuthError, createValidationError, createNotFoundError } from '../middleware/error.middleware.js';
+import {
+  createAuthError,
+  createValidationError,
+  createNotFoundError,
+} from '../middleware/error.middleware.js';
 
 /**
  * Authentication service class
@@ -47,7 +51,7 @@ export class AuthService {
           success: false,
           error: 'Email already exists',
         });
-        
+
         throw createValidationError('Email already exists', {
           field: 'email',
           value: registerData.email,
@@ -116,7 +120,7 @@ export class AuthService {
           success: false,
           error: 'User not found',
         });
-        
+
         throw createAuthError('Invalid email or password');
       }
 
@@ -131,7 +135,7 @@ export class AuthService {
           success: false,
           error: 'Invalid password',
         });
-        
+
         throw createAuthError('Invalid email or password');
       }
 
@@ -199,7 +203,7 @@ export class AuthService {
    */
   async updateProfile(
     userId: string,
-    updates: { name?: string; email?: string }
+    updates: { name?: string; email?: string },
   ): Promise<UserProfile> {
     try {
       // Check if email is being updated and already exists
@@ -236,7 +240,7 @@ export class AuthService {
   async createApiKey(
     userId: string,
     keyData: CreateApiKeyRequest,
-    ip?: string
+    ip?: string,
   ): Promise<ApiKeyResponse> {
     try {
       // Verify user exists
@@ -248,16 +252,13 @@ export class AuthService {
       // Check if user already has maximum number of API keys
       const existingKeys = await this.apiKeyModel.findByUserId(userId);
       const maxKeys = this.getMaxApiKeysForPlan(user.plan);
-      
+
       if (existingKeys.length >= maxKeys) {
-        throw createValidationError(
-          `Maximum number of API keys reached for ${user.plan} plan`,
-          {
-            currentCount: existingKeys.length,
-            maxAllowed: maxKeys,
-            plan: user.plan,
-          }
-        );
+        throw createValidationError(`Maximum number of API keys reached for ${user.plan} plan`, {
+          currentCount: existingKeys.length,
+          maxAllowed: maxKeys,
+          plan: user.plan,
+        });
       }
 
       // Generate API key
@@ -337,7 +338,7 @@ export class AuthService {
   async getApiKey(userId: string, keyId: string): Promise<Omit<ApiKeyResponse, 'key'>> {
     try {
       const apiKey = await this.apiKeyModel.findById(keyId);
-      
+
       if (!apiKey || apiKey.userId !== userId) {
         throw createNotFoundError('API key');
       }
@@ -370,11 +371,11 @@ export class AuthService {
       rateLimitRpm?: number;
       rateLimitTpm?: number;
       isActive?: boolean;
-    }
+    },
   ): Promise<Omit<ApiKeyResponse, 'key'>> {
     try {
       const apiKey = await this.apiKeyModel.findById(keyId);
-      
+
       if (!apiKey || apiKey.userId !== userId) {
         throw createNotFoundError('API key');
       }
@@ -412,7 +413,7 @@ export class AuthService {
   async deleteApiKey(userId: string, keyId: string): Promise<void> {
     try {
       const apiKey = await this.apiKeyModel.findById(keyId);
-      
+
       if (!apiKey || apiKey.userId !== userId) {
         throw createNotFoundError('API key');
       }
@@ -439,7 +440,7 @@ export class AuthService {
   async changePassword(
     userId: string,
     currentPassword: string,
-    newPassword: string
+    newPassword: string,
   ): Promise<void> {
     try {
       const user = await this.userModel.findById(userId);

@@ -19,15 +19,17 @@ interface AnthropicRequest {
   max_tokens: number;
   messages: Array<{
     role: 'user' | 'assistant';
-    content: string | Array<{
-      type: 'text' | 'image';
-      text?: string;
-      source?: {
-        type: 'base64';
-        media_type: string;
-        data: string;
-      };
-    }>;
+    content:
+      | string
+      | Array<{
+          type: 'text' | 'image';
+          text?: string;
+          source?: {
+            type: 'base64';
+            media_type: string;
+            data: string;
+          };
+        }>;
   }>;
   system?: string;
   temperature?: number;
@@ -80,9 +82,12 @@ export class AnthropicProvider extends BaseProvider {
   /**
    * Chat completion implementation for Anthropic
    */
-  async chatCompletion(request: OpenAIRequest): Promise<OpenAIResponse> {
+  async chatCompletion(
+    request: OpenAIRequest,
+    userHeaders?: Record<string, string | string[] | undefined>,
+  ): Promise<OpenAIResponse> {
     const startTime = Date.now();
-    
+
     try {
       // Validate request
       this.validateRequest(request);
@@ -90,8 +95,16 @@ export class AnthropicProvider extends BaseProvider {
       // Transform request to Anthropic format
       const transformedRequest = this.transformRequest(request);
 
-      // Get headers
-      const headers = this.getHeaders();
+      // Get headers and merge with user headers
+      const baseHeaders = this.getHeaders();
+      const headers = this.mergeHeaders(baseHeaders, userHeaders);
+
+      // Debug: Log headers to ensure our API key is used
+      logger.debug('Anthropic request headers', {
+        baseHeaders: { ...baseHeaders, 'x-api-key': '[REDACTED]' },
+        userHeaders: userHeaders ? Object.keys(userHeaders) : 'none',
+        finalHeaders: { ...headers, 'x-api-key': '[REDACTED]' },
+      });
 
       // Log request (sanitized)
       logger.info('Anthropic API request', {
@@ -108,20 +121,18 @@ export class AnthropicProvider extends BaseProvider {
         {
           headers,
           timeout: this.config.timeout,
-          validateStatus: (status) => status < 500, // Don't throw on 4xx errors
-        }
+          validateStatus: status => status < 500, // Don't throw on 4xx errors
+        },
       );
 
       // Handle non-2xx responses
       if (response.status >= 400) {
         const errorData = response.data;
         const errorMessage = errorData?.error?.message || `HTTP ${response.status}`;
-        
+
         logger.warn('Anthropic API error response', {
           provider: this.name,
-          status: response.status,
-          error: errorMessage,
-          model: request.model,
+          ...response
         });
 
         throw new Error(errorMessage);
@@ -134,17 +145,21 @@ export class AnthropicProvider extends BaseProvider {
       const duration = Date.now() - startTime;
       this.logMetrics('chat_completion', duration, true);
 
+      // Log detailed response information
       logger.info('Anthropic API response', {
         provider: this.name,
-        model: transformedResponse.model,
-        duration,
-        usage: transformedResponse.usage,
+        ...transformedResponse,
       });
 
       return transformedResponse;
     } catch (error) {
       const duration = Date.now() - startTime;
-      this.logMetrics('chat_completion', duration, false, error instanceof Error ? error.message : 'Unknown error');
+      this.logMetrics(
+        'chat_completion',
+        duration,
+        false,
+        error instanceof Error ? error.message : 'Unknown error',
+      );
 
       // Handle Axios errors
       if (axios.isAxiosError(error)) {
@@ -246,7 +261,7 @@ export class AnthropicProvider extends BaseProvider {
    */
   private transformMessage(message: OpenAIMessage): AnthropicRequest['messages'][0] {
     const role = message.role === 'user' ? 'user' : 'assistant';
-    
+
     if (typeof message.content === 'string') {
       return {
         role,
@@ -264,12 +279,12 @@ export class AnthropicProvider extends BaseProvider {
         } else if (part.type === 'image_url') {
           // Convert image URL to Anthropic format
           const imageUrl = part.image_url?.url || '';
-          
+
           // Handle base64 images
           if (imageUrl.startsWith('data:')) {
             const [header, data] = imageUrl.split(',');
             const mediaType = header.match(/data:([^;]+)/)?.[1] || 'image/jpeg';
-            
+
             return {
               type: 'image' as const,
               source: {
@@ -279,7 +294,7 @@ export class AnthropicProvider extends BaseProvider {
               },
             };
           }
-          
+
           // For URL images, we'd need to fetch and convert to base64
           // For now, convert to text description
           return {
@@ -287,7 +302,7 @@ export class AnthropicProvider extends BaseProvider {
             text: `[Image: ${imageUrl}]`,
           };
         }
-        
+
         return {
           type: 'text' as const,
           text: JSON.stringify(part),
@@ -377,7 +392,7 @@ export class AnthropicProvider extends BaseProvider {
       'claude-3-opus': 'claude-3-opus-20240229',
       'claude-3-sonnet': 'claude-3-sonnet-20240229',
       'claude-3-haiku': 'claude-3-haiku-20240307',
-      'claude': 'claude-3-sonnet-20240229', // Default
+      claude: 'claude-3-sonnet-20240229', // Default
     };
 
     return modelMap[model] || model;
@@ -388,10 +403,10 @@ export class AnthropicProvider extends BaseProvider {
    */
   private mapFinishReason(stopReason: string): string {
     const reasonMap: Record<string, string> = {
-      'end_turn': 'stop',
-      'max_tokens': 'length',
-      'stop_sequence': 'stop',
-      'tool_use': 'tool_calls',
+      end_turn: 'stop',
+      max_tokens: 'length',
+      stop_sequence: 'stop',
+      tool_use: 'tool_calls',
     };
 
     return reasonMap[stopReason] || 'stop';
@@ -479,10 +494,47 @@ export class AnthropicProvider extends BaseProvider {
       },
     };
 
-    return modelInfo[model] || {
-      contextLength: 100000,
-      supportsFunctions: false,
-      supportsVision: false,
-    };
+    return (
+      modelInfo[model] || {
+        contextLength: 100000,
+        supportsFunctions: false,
+        supportsVision: false,
+      }
+    );
+  }
+
+  /**
+   * Merge base headers with user headers
+   * User headers take precedence over base headers
+   */
+  private mergeHeaders(
+    baseHeaders: Record<string, string>,
+    userHeaders?: Record<string, string | string[] | undefined>,
+  ): Record<string, string> {
+    const merged = { ...baseHeaders };
+
+    if (userHeaders) {
+      for (const [key, value] of Object.entries(userHeaders)) {
+        // Skip our own auth headers to prevent conflicts
+        const lowerKey = key.toLowerCase();
+        if (lowerKey === 'x-api-key' || lowerKey === 'authorization') {
+          logger.debug('Skipping user auth header', { key, value: '[REDACTED]' });
+          continue;
+        }
+        
+        // Convert array values to string
+        if (Array.isArray(value)) {
+          merged[key] = value.join(', ');
+        } else if (value !== undefined) {
+          merged[key] = value;
+        }
+      }
+    }
+
+    // Remove any Host header from user headers to let axios set it automatically
+    delete merged['Host'];
+    delete merged['host'];
+
+    return merged;
   }
 }

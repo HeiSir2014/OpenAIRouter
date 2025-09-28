@@ -6,7 +6,11 @@
 import { Request, Response } from 'express';
 
 import { AuthService } from '../services/auth.service.js';
-import { validateRegisterRequest, validateLoginRequest, validateCreateApiKeyRequest } from '../utils/validation.util.js';
+import {
+  validateRegisterRequest,
+  validateLoginRequest,
+  validateCreateApiKeyRequest,
+} from '../utils/validation.util.js';
 import { logger } from '../utils/logger.util.js';
 import { asyncHandler } from '../middleware/error.middleware.js';
 
@@ -76,7 +80,7 @@ export class AuthController {
     // Validate updates
     const allowedFields = ['name', 'email'];
     const filteredUpdates: any = {};
-    
+
     for (const field of allowedFields) {
       if (updates[field] !== undefined) {
         filteredUpdates[field] = updates[field];
@@ -224,7 +228,7 @@ export class AuthController {
     // Validate updates
     const allowedFields = ['name', 'permissions', 'rateLimitRpm', 'rateLimitTpm', 'isActive'];
     const filteredUpdates: any = {};
-    
+
     for (const field of allowedFields) {
       if (updates[field] !== undefined) {
         filteredUpdates[field] = updates[field];
@@ -300,7 +304,7 @@ export class AuthController {
     // Import UsageService here to avoid circular dependency
     const { UsageService } = await import('../services/usage.service');
     const usageService = new UsageService();
-    
+
     const stats = await usageService.getUserUsageStats(userId, days);
 
     res.json({
@@ -315,7 +319,9 @@ export class AuthController {
    */
   getBillingSummary = asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const userId = req.user!.id;
-    const startDate = req.query.startDate ? new Date(req.query.startDate as string) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const startDate = req.query.startDate
+      ? new Date(req.query.startDate as string)
+      : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     const endDate = req.query.endDate ? new Date(req.query.endDate as string) : new Date();
 
     if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
@@ -343,7 +349,7 @@ export class AuthController {
     // Import UsageService here to avoid circular dependency
     const { UsageService } = await import('../services/usage.service');
     const usageService = new UsageService();
-    
+
     const summary = await usageService.getBillingSummary(userId, startDate, endDate);
 
     res.json({

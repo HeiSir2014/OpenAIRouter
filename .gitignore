@@ -141,6 +141,8 @@ Thumbs.db
 
 # Database files
 database/
+# Ignore database files everywhere except src/
+!src/database/
 *.db
 *.sqlite
 *.sqlite3

@@ -21,14 +21,14 @@ export const validate = (schema: z.ZodSchema) => {
     } catch (error) {
       if (error instanceof z.ZodError) {
         const validationError = createValidationError(error);
-        
+
         logger.warn('Request validation failed', {
           path: req.path,
           method: req.method,
           errors: validationError.error.details,
           userId: req.user?.id,
         });
-        
+
         res.status(400).json(validationError);
       } else {
         logger.error('Validation middleware error', {
@@ -36,7 +36,7 @@ export const validate = (schema: z.ZodSchema) => {
           path: req.path,
           method: req.method,
         });
-        
+
         res.status(500).json({
           error: {
             message: 'Internal validation error',
@@ -61,14 +61,14 @@ export const validateQuery = (schema: z.ZodSchema) => {
     } catch (error) {
       if (error instanceof z.ZodError) {
         const validationError = createValidationError(error);
-        
+
         logger.warn('Query validation failed', {
           path: req.path,
           method: req.method,
           errors: validationError.error.details,
           userId: req.user?.id,
         });
-        
+
         res.status(400).json(validationError);
       } else {
         logger.error('Query validation middleware error', {
@@ -76,7 +76,7 @@ export const validateQuery = (schema: z.ZodSchema) => {
           path: req.path,
           method: req.method,
         });
-        
+
         res.status(500).json({
           error: {
             message: 'Internal validation error',
@@ -101,14 +101,14 @@ export const validateParams = (schema: z.ZodSchema) => {
     } catch (error) {
       if (error instanceof z.ZodError) {
         const validationError = createValidationError(error);
-        
+
         logger.warn('Params validation failed', {
           path: req.path,
           method: req.method,
           errors: validationError.error.details,
           userId: req.user?.id,
         });
-        
+
         res.status(400).json(validationError);
       } else {
         logger.error('Params validation middleware error', {
@@ -116,7 +116,7 @@ export const validateParams = (schema: z.ZodSchema) => {
           path: req.path,
           method: req.method,
         });
-        
+
         res.status(500).json({
           error: {
             message: 'Internal validation error',
@@ -135,7 +135,7 @@ export const validateParams = (schema: z.ZodSchema) => {
 export const validateContentType = (allowedTypes: string[] = ['application/json']) => {
   return (req: Request, res: Response, next: NextFunction): void => {
     const contentType = req.get('Content-Type');
-    
+
     if (!contentType) {
       res.status(400).json({
         error: {
@@ -146,11 +146,11 @@ export const validateContentType = (allowedTypes: string[] = ['application/json'
       });
       return;
     }
-    
-    const isValidType = allowedTypes.some(type => 
-      contentType.toLowerCase().includes(type.toLowerCase())
+
+    const isValidType = allowedTypes.some(type =>
+      contentType.toLowerCase().includes(type.toLowerCase()),
     );
-    
+
     if (!isValidType) {
       res.status(415).json({
         error: {
@@ -165,7 +165,7 @@ export const validateContentType = (allowedTypes: string[] = ['application/json'
       });
       return;
     }
-    
+
     next();
   };
 };
@@ -176,7 +176,7 @@ export const validateContentType = (allowedTypes: string[] = ['application/json'
 export const validateRequestSize = (maxSizeBytes: number = 1024 * 1024) => {
   return (req: Request, res: Response, next: NextFunction): void => {
     const contentLength = req.get('Content-Length');
-    
+
     if (contentLength && parseInt(contentLength, 10) > maxSizeBytes) {
       res.status(413).json({
         error: {
@@ -191,7 +191,7 @@ export const validateRequestSize = (maxSizeBytes: number = 1024 * 1024) => {
       });
       return;
     }
-    
+
     next();
   };
 };
@@ -202,7 +202,7 @@ export const validateRequestSize = (maxSizeBytes: number = 1024 * 1024) => {
 export const validateApiVersion = (supportedVersions: string[] = ['v1']) => {
   return (req: Request, res: Response, next: NextFunction): void => {
     const version = req.params.version || req.get('API-Version') || 'v1';
-    
+
     if (!supportedVersions.includes(version)) {
       res.status(400).json({
         error: {
@@ -217,7 +217,7 @@ export const validateApiVersion = (supportedVersions: string[] = ['v1']) => {
       });
       return;
     }
-    
+
     // Add version to request for later use
     req.apiVersion = version;
     next();
@@ -231,13 +231,13 @@ export const validateApiVersion = (supportedVersions: string[] = ['v1']) => {
 export const validateModel = (supportedModels: string[]) => {
   return (req: Request, res: Response, next: NextFunction): void => {
     const model = req.body?.model;
-    
+
     if (!model) {
       // Model is optional in some cases, let the controller handle it
       next();
       return;
     }
-    
+
     if (!supportedModels.includes(model)) {
       res.status(400).json({
         error: {
@@ -252,7 +252,7 @@ export const validateModel = (supportedModels: string[]) => {
       });
       return;
     }
-    
+
     next();
   };
 };
@@ -264,22 +264,22 @@ export const validateModel = (supportedModels: string[]) => {
 export const validateRateLimit = () => {
   return (req: Request, res: Response, next: NextFunction): void => {
     const apiKey = req.apiKey;
-    
+
     if (!apiKey) {
       // No API key, skip rate limit validation
       next();
       return;
     }
-    
+
     // TODO: Implement actual rate limiting logic
     // This is a placeholder for now
-    
+
     // For now, just add rate limit info to response headers
     res.set({
       'X-RateLimit-Limit-RPM': apiKey.rateLimitRpm.toString(),
       'X-RateLimit-Limit-TPM': apiKey.rateLimitTpm.toString(),
     });
-    
+
     next();
   };
 };
@@ -299,12 +299,12 @@ export const sanitizeRequest = () => {
           }
         }
       }
-      
+
       // Sanitize body (be careful not to break JSON structure)
       if (req.body && typeof req.body === 'object') {
         sanitizeObject(req.body);
       }
-      
+
       next();
     } catch (error) {
       logger.error('Request sanitization error', {
@@ -312,7 +312,7 @@ export const sanitizeRequest = () => {
         path: req.path,
         method: req.method,
       });
-      
+
       res.status(500).json({
         error: {
           message: 'Request processing error',
@@ -332,12 +332,12 @@ function sanitizeObject(obj: any, depth: number = 0): void {
   if (depth > 10) {
     return;
   }
-  
+
   for (const [key, value] of Object.entries(obj)) {
     if (typeof value === 'string') {
       // Basic string sanitization
       obj[key] = value.trim();
-      
+
       // Limit string length to prevent abuse
       if (obj[key].length > 10000) {
         obj[key] = obj[key].substring(0, 10000);

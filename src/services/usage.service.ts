@@ -8,6 +8,7 @@ import { UserModel } from '../database/models/user.model.js';
 import { CreateUsageLogData, UsageLog, UsageStats } from '../types/common.types.js';
 import { logger, logApiUsage } from '../utils/logger.util.js';
 import { createNotFoundError } from '../middleware/error.middleware.js';
+import { appConfig } from '../config/app.config.js';
 
 /**
  * Usage service class
@@ -21,13 +22,41 @@ export class UsageService {
    */
   async logUsage(logData: CreateUsageLogData): Promise<UsageLog> {
     try {
+      // Skip database logging if authentication is disabled
+      if (appConfig.disableAuth) {
+        logger.info('Skipping usage logging - authentication disabled', {
+          userId: logData.userId,
+          apiKeyId: logData.apiKeyId,
+          provider: logData.provider,
+          model: logData.model,
+          tokens: logData.totalTokens,
+        });
+
+        // Return a mock usage log for consistency
+        return {
+          id: 'dev-usage-log',
+          userId: logData.userId,
+          apiKeyId: logData.apiKeyId,
+          provider: logData.provider,
+          model: logData.model,
+          promptTokens: logData.promptTokens,
+          completionTokens: logData.completionTokens,
+          totalTokens: logData.totalTokens,
+          cost: 0, // No cost in dev mode
+          latency: logData.latency || 0,
+          success: logData.success !== false,
+          errorMessage: logData.errorMessage,
+          createdAt: new Date(),
+        };
+      }
+
       // Calculate cost if not provided
       if (!logData.cost) {
         logData.cost = this.calculateCost(
           logData.provider,
           logData.model,
           logData.promptTokens,
-          logData.completionTokens
+          logData.completionTokens,
         );
       }
 
@@ -72,6 +101,22 @@ export class UsageService {
    */
   async getUserUsageStats(userId: string, days: number = 30): Promise<UsageStats> {
     try {
+      // Return default stats if authentication is disabled
+      if (appConfig.disableAuth) {
+        logger.info('Returning default usage stats - authentication disabled', { userId, days });
+        
+        return {
+          totalRequests: 0,
+          totalTokens: 0,
+          totalCost: 0,
+          averageLatency: 0,
+          successRate: 100,
+          topModels: [],
+          topProviders: [],
+          dailyUsage: [],
+        };
+      }
+
       const stats = await this.usageModel.getUserStats(userId, days);
 
       return {
@@ -138,7 +183,7 @@ export class UsageService {
       provider?: string;
       model?: string;
       success?: boolean;
-    } = {}
+    } = {},
   ): Promise<{ logs: UsageLog[]; total: number }> {
     try {
       return await this.usageModel.findByUserId(userId, options);
@@ -158,7 +203,7 @@ export class UsageService {
       limit?: number;
       startDate?: Date;
       endDate?: Date;
-    } = {}
+    } = {},
   ): Promise<{ logs: UsageLog[]; total: number }> {
     try {
       return await this.usageModel.findByApiKeyId(apiKeyId, options);
@@ -175,25 +220,31 @@ export class UsageService {
     provider: string,
     model: string,
     promptTokens: number,
-    completionTokens: number
+    completionTokens: number,
   ): number {
     const pricing = this.getModelPricing(provider, model);
-    
+
     const promptCost = (promptTokens / 1000) * pricing.promptPrice;
     const completionCost = (completionTokens / 1000) * pricing.completionPrice;
-    
+
     return promptCost + completionCost;
   }
 
   /**
    * Get model pricing information
    */
-  private getModelPricing(provider: string, model: string): {
+  private getModelPricing(
+    provider: string,
+    model: string,
+  ): {
     promptPrice: number;
     completionPrice: number;
   } {
     // Pricing per 1K tokens in USD
-    const pricing: Record<string, Record<string, { promptPrice: number; completionPrice: number }>> = {
+    const pricing: Record<
+      string,
+      Record<string, { promptPrice: number; completionPrice: number }>
+    > = {
       openai: {
         'gpt-4': { promptPrice: 0.03, completionPrice: 0.06 },
         'gpt-4-turbo': { promptPrice: 0.01, completionPrice: 0.03 },
@@ -258,7 +309,7 @@ export class UsageService {
   async getBillingSummary(
     userId: string,
     startDate: Date,
-    endDate: Date
+    endDate: Date,
   ): Promise<{
     totalCost: number;
     totalTokens: number;
@@ -282,13 +333,16 @@ export class UsageService {
       let totalTokens = 0;
       let totalRequests = logs.length;
 
-      const breakdown = new Map<string, {
-        provider: string;
-        model: string;
-        requests: number;
-        tokens: number;
-        cost: number;
-      }>();
+      const breakdown = new Map<
+        string,
+        {
+          provider: string;
+          model: string;
+          requests: number;
+          tokens: number;
+          cost: number;
+        }
+      >();
 
       for (const log of logs) {
         totalCost += log.cost;
@@ -327,6 +381,12 @@ export class UsageService {
    */
   async checkUserCredits(userId: string, estimatedCost: number): Promise<boolean> {
     try {
+      // Skip credit check if authentication is disabled
+      if (appConfig.disableAuth) {
+        logger.info('Skipping credit check - authentication disabled', { userId, estimatedCost });
+        return true; // Always allow in dev mode
+      }
+
       const user = await this.userModel.findById(userId);
       if (!user) {
         throw createNotFoundError('User');
@@ -344,6 +404,12 @@ export class UsageService {
    */
   async addCredits(userId: string, amount: number, reason: string): Promise<void> {
     try {
+      // Skip credit operations if authentication is disabled
+      if (appConfig.disableAuth) {
+        logger.info('Skipping credit addition - authentication disabled', { userId, amount, reason });
+        return;
+      }
+
       const user = await this.userModel.updateCredits(userId, amount);
       if (!user) {
         throw createNotFoundError('User');
@@ -367,7 +433,7 @@ export class UsageService {
   async cleanupOldLogs(olderThanDays: number = 90): Promise<number> {
     try {
       const deletedCount = await this.usageModel.cleanup(olderThanDays);
-      
+
       logger.info('Usage logs cleanup completed', {
         deletedCount,
         olderThanDays,

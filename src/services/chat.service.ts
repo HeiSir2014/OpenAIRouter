@@ -6,7 +6,10 @@
 import { OpenAIRequest, OpenAIResponse } from '../types/openai.types.js';
 import { User } from '../types/auth.types.js';
 import { getProviderForModel, getAvailableProviders } from '../providers/factory.js';
-import { getAllAvailableModels, getProviderForModel as getProviderNameForModel } from '../config/providers.config.js';
+import {
+  getAllAvailableModels,
+  getProviderForModel as getProviderNameForModel,
+} from '../config/providers.config.js';
 import { UsageService } from './usage.service.js';
 import { logger } from '../utils/logger.util.js';
 import { createProviderError, createValidationError } from '../middleware/error.middleware.js';
@@ -23,18 +26,16 @@ export class ChatService {
   async createCompletion(
     request: OpenAIRequest,
     user: User,
-    apiKeyId: string
+    apiKeyId: string,
+    headers?: Record<string, string | string[] | undefined>,
   ): Promise<OpenAIResponse> {
     const startTime = Date.now();
-    
-    try {
-      // Validate request
-      this.validateRequest(request);
 
+    try {
       // Determine model and provider
       const model = request.model || this.getDefaultModel();
       const providerName = getProviderNameForModel(model);
-      
+
       logger.info('Chat completion request', {
         userId: user.id,
         apiKeyId,
@@ -54,7 +55,7 @@ export class ChatService {
         providerName,
         model,
         Math.floor(estimatedTokens * 0.7), // Estimate 70% prompt tokens
-        Math.floor(estimatedTokens * 0.3)  // Estimate 30% completion tokens
+        Math.floor(estimatedTokens * 0.3), // Estimate 30% completion tokens
       );
 
       // Check if user has sufficient credits
@@ -67,10 +68,13 @@ export class ChatService {
       }
 
       // Make the completion request
-      const response = await provider.chatCompletion({
-        ...request,
-        model, // Ensure model is set
-      });
+      const response = await provider.chatCompletion(
+        {
+          ...request,
+          model, // Ensure model is set
+        },
+        headers, // Pass user headers
+      );
 
       // Calculate actual usage and cost
       const actualUsage = response.usage || {
@@ -83,7 +87,7 @@ export class ChatService {
         providerName,
         model,
         actualUsage.prompt_tokens,
-        actualUsage.completion_tokens
+        actualUsage.completion_tokens,
       );
 
       const latency = Date.now() - startTime;
@@ -151,15 +155,17 @@ export class ChatService {
   /**
    * Get available models
    */
-  async getAvailableModels(): Promise<Array<{
-    id: string;
-    object: string;
-    created: number;
-    owned_by: string;
-  }>> {
+  async getAvailableModels(): Promise<
+    Array<{
+      id: string;
+      object: string;
+      created: number;
+      owned_by: string;
+    }>
+  > {
     try {
       const models = getAllAvailableModels();
-      
+
       return models.map(model => ({
         id: model,
         object: 'model',
@@ -187,7 +193,7 @@ export class ChatService {
     try {
       const providerName = getProviderNameForModel(modelId);
       const provider = getProviderForModel(modelId);
-      
+
       // Get model-specific information if provider supports it
       let modelInfo = {};
       if ('getModelInfo' in provider && typeof provider.getModelInfo === 'function') {
@@ -210,16 +216,21 @@ export class ChatService {
   /**
    * Check provider health
    */
-  async checkProviderHealth(): Promise<Record<string, {
-    healthy: boolean;
-    latency: number;
-    error?: string;
-  }>> {
+  async checkProviderHealth(): Promise<
+    Record<
+      string,
+      {
+        healthy: boolean;
+        latency: number;
+        error?: string;
+      }
+    >
+  > {
     try {
       const availableProviders = getAvailableProviders();
       const healthResults: Record<string, any> = {};
 
-      const healthChecks = availableProviders.map(async (providerName) => {
+      const healthChecks = availableProviders.map(async providerName => {
         try {
           const provider = getProviderForModel(providerName);
           const health = await provider.getHealth();
@@ -262,7 +273,7 @@ export class ChatService {
     if (request.messages) {
       for (let i = 0; i < request.messages.length; i++) {
         const message = request.messages[i];
-        
+
         if (!message.role) {
           throw createValidationError(`Message at index ${i} is missing role`);
         }
@@ -321,7 +332,11 @@ export class ChatService {
     }
 
     if (request.temperature !== undefined) {
-      if (typeof request.temperature !== 'number' || request.temperature < 0 || request.temperature > 2) {
+      if (
+        typeof request.temperature !== 'number' ||
+        request.temperature < 0 ||
+        request.temperature > 2
+      ) {
         throw createValidationError('temperature must be a number between 0 and 2');
       }
     }
@@ -346,7 +361,7 @@ export class ChatService {
 
       for (let i = 0; i < request.tools.length; i++) {
         const tool = request.tools[i];
-        
+
         if (tool.type !== 'function') {
           throw createValidationError(`Tool at index ${i} must have type 'function'`);
         }
@@ -385,7 +400,7 @@ export class ChatService {
    */
   private getDefaultModel(): string {
     const availableModels = getAllAvailableModels();
-    
+
     // Prefer GPT-3.5-turbo if available
     if (availableModels.includes('gpt-3.5-turbo')) {
       return 'gpt-3.5-turbo';
@@ -418,7 +433,7 @@ export class ChatService {
         providerName,
         model,
         Math.floor(estimatedTokens * 0.7),
-        Math.floor(estimatedTokens * 0.3)
+        Math.floor(estimatedTokens * 0.3),
       );
 
       return {

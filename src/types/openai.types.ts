@@ -42,24 +42,27 @@ export interface FunctionDescription {
   parameters: Record<string, unknown>; // JSON Schema object
 }
 
-export type ToolChoice = 'none' | 'auto' | {
-  type: 'function';
-  function: {
-    name: string;
-  };
-};
+export type ToolChoice =
+  | 'none'
+  | 'auto'
+  | {
+      type: 'function';
+      function: {
+        name: string;
+      };
+    };
 
 export interface OpenAIRequest {
   // Core parameters
   messages?: OpenAIMessage[];
   prompt?: string;
   model?: string;
-  
+
   // Response format
   response_format?: {
     type: 'json_object' | 'text';
   };
-  
+
   // Control parameters
   max_tokens?: number;
   temperature?: number;
@@ -67,18 +70,18 @@ export interface OpenAIRequest {
   n?: number;
   stream?: boolean;
   stop?: string | string[];
-  
+
   // Advanced parameters
   presence_penalty?: number;
   frequency_penalty?: number;
   logit_bias?: Record<number, number>;
   user?: string;
   seed?: number;
-  
+
   // Tool calling
   tools?: Tool[];
   tool_choice?: ToolChoice;
-  
+
   // Provider-specific (non-OpenAI)
   top_k?: number;
   repetition_penalty?: number;

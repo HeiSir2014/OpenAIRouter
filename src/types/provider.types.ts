@@ -78,8 +78,11 @@ export interface ProviderStats {
 export interface IProvider {
   name: string;
   config: ProviderConfig;
-  
-  chatCompletion(request: OpenAIRequest): Promise<OpenAIResponse>;
+
+  chatCompletion(
+    request: OpenAIRequest,
+    headers?: Record<string, string | string[] | undefined>,
+  ): Promise<OpenAIResponse>;
   transformRequest(request: OpenAIRequest): unknown;
   transformResponse(response: unknown): OpenAIResponse;
   getHeaders(): Record<string, string>;
@@ -102,7 +105,7 @@ export interface IProviderSelector {
   selectProvider(
     model: string,
     availableProviders: ProviderConfig[],
-    userPreferences?: ProviderPreferences
+    userPreferences?: ProviderPreferences,
   ): ProviderConfig;
 }
 

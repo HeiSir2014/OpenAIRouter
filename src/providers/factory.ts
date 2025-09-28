@@ -34,7 +34,7 @@ export class ProviderFactory implements IProviderFactory {
     // Check if provider is already cached
     if (this.providers.has(providerName)) {
       const provider = this.providers.get(providerName)!;
-      
+
       // Verify provider is still active
       if (provider.isActive()) {
         return provider;
@@ -56,10 +56,10 @@ export class ProviderFactory implements IProviderFactory {
 
     // Create provider instance
     const provider = this.createProviderInstance(config);
-    
+
     // Cache the provider
     this.providers.set(providerName, provider);
-    
+
     logger.info('Provider instance created', {
       provider: providerName,
       models: config.models.length,
@@ -110,7 +110,7 @@ export class ProviderFactory implements IProviderFactory {
    */
   getProviderForModel(model: string): IProvider {
     const activeProviders = getActiveProviders();
-    
+
     // Find provider that supports the model
     for (const config of activeProviders) {
       if (config.models.includes(model)) {
@@ -165,11 +165,13 @@ export class ProviderFactory implements IProviderFactory {
   /**
    * Health check all providers
    */
-  async healthCheck(): Promise<Record<string, { healthy: boolean; latency: number; error?: string }>> {
+  async healthCheck(): Promise<
+    Record<string, { healthy: boolean; latency: number; error?: string }>
+  > {
     const providers = this.getAllProviders();
     const results: Record<string, any> = {};
 
-    const healthChecks = providers.map(async (provider) => {
+    const healthChecks = providers.map(async provider => {
       try {
         const health = await provider.getHealth();
         results[provider.name] = health;
@@ -208,10 +210,10 @@ export class ProviderFactory implements IProviderFactory {
     switch (config.name) {
       case 'openai':
         return new OpenAIProvider(config);
-      
+
       case 'anthropic':
         return new AnthropicProvider(config);
-      
+
       default:
         throw new Error(`Unknown provider type: ${config.name}`);
     }
@@ -273,7 +275,7 @@ export const checkProviderHealth = async (): Promise<Record<string, any>> => {
 export const initializeProviders = (): void => {
   const factory = ProviderFactory.getInstance();
   const availableProviders = factory.getAvailableProviders();
-  
+
   logger.info('Provider factory initialized', {
     availableProviders,
     count: availableProviders.length,
